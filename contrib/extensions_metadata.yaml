@@ -200,6 +200,20 @@ envoy.transport_sockets.istio_hbone:
   status: wip
   type_urls:
   - envoy.extensions.filters.network.istio_hbone.v3alpha.UpstreamConfig
+envoy.upstream_options.istio_hbone:
+  categories:
+  - envoy.upstream_options
+  security_posture: requires_trusted_downstream_and_upstream
+  status: wip
+  type_urls:
+  - envoy.extensions.filters.network.istio_hbone.v3alpha.GoAwayOptions
+envoy.load_balancing_policies.istio_hbone:
+  categories:
+  - envoy.load_balancing_policies
+  security_posture: requires_trusted_downstream_and_upstream
+  status: wip
+  type_urls:
+  - envoy.extensions.filters.network.istio_hbone.v3alpha.GoAwayLoadBalancingConfig
 envoy.filters.network.metadata_exchange:
   categories:
   - envoy.filters.network

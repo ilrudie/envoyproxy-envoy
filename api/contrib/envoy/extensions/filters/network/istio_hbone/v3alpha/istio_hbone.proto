@@ -2,8 +2,11 @@ syntax = "proto3";
 
 package envoy.extensions.filters.network.istio_hbone.v3alpha;
 
+import "envoy/config/cluster/v3/cluster.proto";
 import "envoy/extensions/filters/network/tcp_proxy/v3/tcp_proxy.proto";
 import "envoy/extensions/transport_sockets/internal_upstream/v3/internal_upstream.proto";
+
+import "google/protobuf/duration.proto";
 
 import "xds/annotations/v3/status.proto";
 
@@ -40,4 +43,40 @@ message UpstreamConfig {
   // metadata when required by the listener's original destination filter.
   repeated envoy.extensions.transport_sockets.internal_upstream.v3.InternalUpstreamTransport
       .MetadataValueSource passthrough_metadata = 1;
+}
+
+// Optional protocol options on the outer HBONE HTTP/2 cluster. Records peer
+// GOAWAY notifications for GoAwayLoadBalancingConfig without changing the
+// lifetime of accepted CONNECT streams.
+// [#extension: envoy.upstream_options.istio_hbone]
+message GoAwayOptions {
+  // How long to prefer other destinations after receiving GOAWAY. Defaults to
+  // 30 seconds. Repeated GOAWAY frames on one connection do not extend this time.
+  google.protobuf.Duration cooldown = 1 [(validate.rules).duration = {
+    gt {}
+    lte {seconds: 300}
+  }];
+}
+
+// Optional service-cluster load balancing policy paired with GoAwayOptions.
+// The preference is shared across workers and clusters in this Envoy process.
+// It does not change endpoint health or close existing application connections.
+// [#extension: envoy.load_balancing_policies.istio_hbone]
+message GoAwayLoadBalancingConfig {
+  // The existing endpoint selection policy. This proof of concept supports round robin,
+  // least request, and random. Its health, locality, priority and weight settings
+  // continue to apply.
+  envoy.config.cluster.v3.LoadBalancingPolicy child_policy = 1
+      [(validate.rules).message = {required: true}];
+
+  // Maximum candidate selections before accepting the child's final choice.
+  // Defaults to 16. A larger caller-supplied host selection retry budget is preserved.
+  // These are local selections, not network connection attempts.
+  // This bounds work and allows progress even when all candidates have sent GOAWAY.
+  uint32 max_selection_attempts = 2 [(validate.rules).uint32 = {lte: 256}];
+
+  // Match the outer original-destination cluster's port override (15008 in
+  // Istio). Zero preserves the port in the endpoint's original-destination
+  // metadata. Only internal endpoints with that metadata are considered.
+  uint32 upstream_port_override = 3 [(validate.rules).uint32 = {lte: 65535}];
 }

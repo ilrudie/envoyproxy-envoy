@@ -23,3 +23,13 @@ bazel test -c fastbuild --copt=-g0 --jobs=6 \
 The integration tests use an HTTP/2 fake HBONE peer to isolate CONNECT acceptance,
 refusal, multiplexing and GOAWAY behavior. They do not exercise ztunnel or mutual TLS
 identity configuration.
+
+Optional destination preference adds `envoy.upstream_options.istio_hbone` to the outer
+HBONE cluster and `envoy.load_balancing_policies.istio_hbone` around the service cluster's
+native selection policy. GOAWAY supplies a temporary peer hint shared across workers.
+The wrapper avoids hinted peers within a bounded selection budget, with fallback when
+alternatives cannot be selected. It preserves accepted streams and endpoint health.
+The paired Istiod POC enables this with `ENABLE_HBONE_GOAWAY_PREFERENCE: "true"`, in
+addition to `ENABLE_HBONE_ORIGINATION_SHIM: "true"`. Both new extensions must be built
+into the proxy. Run `//contrib/istio/filters/network/hbone/test:goaway_test` alongside
+the tests above for cache expiry, policy selection, and worker factory lifetime checks.

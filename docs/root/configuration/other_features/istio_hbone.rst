@@ -99,3 +99,86 @@ wrapping of the internal transport. Mutual TLS remains on the outer HBONE cluste
 
 * :ref:`Network filter API <envoy_v3_api_msg_extensions.filters.network.istio_hbone.v3alpha.Config>`
 * :ref:`Transport API <envoy_v3_api_msg_extensions.filters.network.istio_hbone.v3alpha.UpstreamConfig>`
+
+Optional GOAWAY destination preference
+-------------------------------------
+
+Two additional contrib extensions can prefer destinations whose HBONE peers have
+not recently sent GOAWAY. This addresses retries exhausted against several terminating
+pods before endpoint discovery catches up. It does not require core Envoy changes.
+
+Add the following entry alongside the existing HTTP protocol options on the outer
+``connect_originate`` cluster, retaining its HTTP/2 and mutual TLS configuration:
+
+.. code-block:: yaml
+
+   typed_extension_protocol_options:
+     envoy.upstream_options.istio_hbone:
+       "@type": type.googleapis.com/envoy.extensions.filters.network.istio_hbone.v3alpha.GoAwayOptions
+       cooldown: 30s
+
+Wrap the application service cluster's existing load balancing policy:
+
+.. code-block:: yaml
+
+   lb_policy: LOAD_BALANCING_POLICY_CONFIG
+   load_balancing_policy:
+     policies:
+     - typed_extension_config:
+         name: envoy.load_balancing_policies.istio_hbone
+         typed_config:
+           "@type": type.googleapis.com/envoy.extensions.filters.network.istio_hbone.v3alpha.GoAwayLoadBalancingConfig
+           upstream_port_override: 15008
+           max_selection_attempts: 16
+           child_policy:
+             policies:
+             - typed_extension_config:
+                 name: envoy.load_balancing_policies.round_robin
+                 typed_config:
+                   "@type": type.googleapis.com/envoy.extensions.load_balancing_policies.round_robin.v3.RoundRobin
+
+The child must be round-robin, least-request, or random. Convert legacy locality and
+slow-start settings into the child policy when wrapping it. Envoy rejects legacy
+locality fields in ``common_lb_config`` alongside a typed policy; other cluster-wide
+settings, including the panic threshold, remain on the cluster. Consistent-hash,
+subset load balancing, and arbitrary custom child policies are outside this POC.
+
+Each received GOAWAY records the actual outer socket's peer IP and port in a bounded
+process-wide cache shared across workers and clusters. The first GOAWAY on a connection
+starts a cooldown (default 30 seconds, maximum 300 seconds). GOAWAY on another connection
+can extend it. Duplicate frames on the same connection cannot extend it. Entries expire
+without requiring an endpoint discovery update; the 4096-entry cache evicts the earliest
+expiry when full after removing expired entries.
+
+Selection maps internal endpoints to their ``envoy.filters.listener.original_dst``
+metadata: a nonempty ``waypoint`` takes precedence over ``local``. The port override must
+match the outer original-destination cluster. In Istio this is 15008. Zero preserves the
+metadata port for standalone configurations. Plain IP endpoints are unaffected. Direct
+workload ports sharing an HBONE peer share its hint; when several destinations share a
+waypoint peer, the hint covers all of them.
+
+The wrapper uses the child's host reselection hook before the first network attempt and
+on retries, preserving the caller's previous-host predicate. Candidate selections do
+not consume network retry attempts. The default budget is 16 candidates, configurable
+up to 256; a larger caller-supplied reselection budget is preserved. Locality, priority,
+health and weight rules still govern candidate generation. If the budget is exhausted,
+the child's final candidate is accepted, including a peer in cooldown. This is a soft
+preference, not endpoint ejection or a guarantee of avoiding every draining peer.
+
+The normal HTTP/2 pool still receives GOAWAY and stops opening streams on that outer
+connection. Accepted CONNECT streams and their application connections remain alive;
+the preference does not forcibly drain them or make ambiguous application failures
+safe to retry. Existing connection selection paths that bypass load balancing are
+also outside this preference. Host health and outlier detection are not changed by a
+GOAWAY hint; actual CONNECT failures retain their existing accounting.
+
+The following process-wide counters describe preference activity:
+
+* ``istio_hbone.goaway_received``: connections that supplied a GOAWAY hint.
+* ``istio_hbone.hosts_skipped``: candidate rejections due to an active hint, including
+  candidates that may be accepted on fallback.
+* ``istio_hbone.fallback_selections``: final selections whose peer was still in cooldown.
+* ``istio_hbone.cache_evictions``: unexpired entries evicted due to the capacity limit.
+
+Allow the ``istio_hbone.`` prefix in any configured stats matcher to expose these counters.
+They describe shared transport hints; they are not per-service or per-workload counters.
