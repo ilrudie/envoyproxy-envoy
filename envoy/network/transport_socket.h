@@ -124,6 +124,14 @@ public:
   virtual ~TransportSocket() = default;
 
   /**
+   * Optionally supply a client connection's I/O handle instead of an OS socket. The connection
+   * owns the returned handle. A null result selects the normal socket for the destination address.
+   * Stream-backed handles must withhold write readiness until establishment succeeds or fails,
+   * including explicit event activation while the connection is still being established.
+   */
+  virtual IoHandlePtr createIoHandle(Event::Dispatcher&) { return nullptr; }
+
+  /**
    * Called by connection once to initialize the transport socket callbacks that the transport
    * socket should use.
    * @param callbacks supplies the callbacks instance.

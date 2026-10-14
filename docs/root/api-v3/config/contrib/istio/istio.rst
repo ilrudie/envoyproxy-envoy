@@ -12,3 +12,4 @@ Istio Contrib Extensions
   ../../../extensions/filters/network/peer_metadata/v3/peer_metadata.proto
   ../../../extensions/filters/common/workload_discovery/v3/discovery.proto
   ../../../extensions/filters/common/workload_discovery/v3/extension.proto
+  ../../../extensions/transport_sockets/hbone/v3/hbone.proto

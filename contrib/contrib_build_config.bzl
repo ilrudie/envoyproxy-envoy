@@ -70,6 +70,12 @@ CONTRIB_EXTENSIONS = {
     "envoy.tls.key_providers.qat":                              "//contrib/qat/private_key_providers/source:config",
 
     #
+    # Transport sockets
+    #
+
+    "envoy.transport_sockets.hbone": "//contrib/istio/transport_sockets/hbone/source:config",
+
+    #
     # Socket interface extensions
     #
 

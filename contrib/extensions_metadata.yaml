@@ -229,3 +229,10 @@ envoy.bootstrap.reverse_tunnel.reverse_tunnel_reporting_service:
   type_urls:
   - envoy.extensions.reverse_tunnel_reporters.v3alpha.reporters.EventReporterConfig
   - envoy.extensions.reverse_tunnel_reporters.v3alpha.clients.grpc_client.GrpcClientConfig
+envoy.transport_sockets.hbone:
+  categories:
+  - envoy.transport_sockets.upstream
+  security_posture: requires_trusted_downstream_and_upstream
+  status: alpha
+  type_urls:
+  - envoy.extensions.transport_sockets.hbone.v3.Hbone

@@ -160,6 +160,7 @@ envoy_cc_library(
         ":address_lib",
         ":connection_base_lib",
         ":connection_impl",
+        ":connection_socket_lib",
         "//envoy/network:client_connection_factory",
         "//envoy/network:connection_interface",
         "//envoy/network:transport_socket_interface",

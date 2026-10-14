@@ -67,6 +67,10 @@ class PassthroughSocket : public Network::TransportSocket {
 public:
   PassthroughSocket(Network::TransportSocketPtr&& transport_socket);
 
+  Network::IoHandlePtr createIoHandle(Event::Dispatcher& dispatcher) override {
+    return transport_socket_->createIoHandle(dispatcher);
+  }
+
   void setTransportSocketCallbacks(Network::TransportSocketCallbacks& callbacks) override;
   std::string protocol() const override;
   absl::string_view failureReason() const override;

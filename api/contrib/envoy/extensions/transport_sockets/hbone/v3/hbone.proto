@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package envoy.extensions.transport_sockets.hbone.v3;
+
+import "envoy/config/core/v3/base.proto";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/wrappers.proto";
+
+import "udpa/annotations/status.proto";
+import "validate/validate.proto";
+
+option java_package = "io.envoyproxy.envoy.extensions.transport_sockets.hbone.v3";
+option java_outer_classname = "HboneProto";
+option java_multiple_files = true;
+option go_package = "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/transport_sockets/hbone/v3;hbonev3";
+option (udpa.annotations.file_status).package_version_status = ACTIVE;
+
+// [#protodoc-title: Native HBONE upstream transport]
+// [#extension: envoy.transport_sockets.hbone]
+
+// Establishes one HTTP/2 CONNECT stream per application connection. The application transport
+// becomes connected only after a 200 response without END_STREAM. This experimental transport
+// supports the direct workload hop; gateway delegation and double HBONE are not supported.
+message Hbone {
+  // Cluster providing outer HTTP/2 connections. For direct workload traffic use ORIGINAL_DST,
+  // CLUSTER_PROVIDED load balancing and an HBONE port override (normally 15008). The selected
+  // peer must have the same IP as the application endpoint. Different application ports on one
+  // workload can share an outer connection. Configure mesh TLS and proxy credentials here.
+  // This cluster must not itself use the HBONE transport.
+  string cluster = 1 [(validate.rules).string = {min_len: 1}];
+
+  // Application transport layered above the accepted CONNECT stream (normally raw_buffer).
+  // Caller transport options apply only to this transport, never to outer mesh TLS.
+  config.core.v3.TransportSocket transport_socket = 2 [(validate.rules).message = {required: true}];
+
+  // Maximum time for outer pool acquisition and CONNECT acceptance, including when an outer
+  // connection already exists. Defaults to five seconds. The application cluster's connect
+  // timeout also applies and may expire sooner.
+  google.protobuf.Duration connect_timeout = 3 [(validate.rules).duration = {gt {}}];
+
+  // Soft receive watermark and maximum write batch size, in bytes. Defaults to 65536.
+  google.protobuf.UInt32Value buffer_limit_bytes = 4 [(validate.rules).uint32 = {gt: 0}];
+}
